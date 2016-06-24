@@ -1,0 +1,4 @@
+[wrap-git]
+directory=date
+url=https://github.com/elvisoric/date.git
+revision=meson_script
