@@ -3,20 +3,14 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/fusion/include/for_each.hpp>
 #include <boost/fusion/include/is_sequence.hpp>
+#include <chrono>
 #include <exception>
 #include <unordered_map>
 #include "network.hpp"
 #include "optional.hpp"
-#include <chrono>
-// #include "serialization_types.hpp"
 
 namespace asio = boost::asio;
 namespace fusion = boost::fusion;
-
-// namespace detail {
-// template <typename T>
-// std::pair<T, asio::const_buffer> read(asio::const_buffer buf);
-// }
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -35,8 +29,6 @@ T read_integral_value(asio::const_buffer &buf) {
     else if (sizeof(T) == 8) {
         val = network::ntoh(*static_cast<const emscripten_align1_int64 *>(
             asio::buffer_cast<const emscripten_align1_int64 *>(buf)));
-        // auto res = detail::read<types::ComposedInt64>(buf);
-        // val = res.first;
     }
     return val;
 }
@@ -49,9 +41,6 @@ T read_integral_value(asio::const_buffer &buf) {
     return val;
 }
 #endif
-
-// namespace asio = boost::asio;
-// namespace fusion = boost::fusion;
 
 namespace detail {
 
@@ -66,42 +55,23 @@ struct reader_base {
     template <typename T>
     auto operator()(T &val) const ->
         typename std::enable_if<std::is_integral<T>::value>::type {
-        // if(sizeof(T) == 1)
-        //     val = network::ntoh(*asio::buffer_cast<const T *>(buf_));
-        // else if(sizeof(T) == 2)
-        //     val = network::ntoh(*static_cast<const emscripten_align1_short*>
-        //     (asio::buffer_cast<const emscripten_align1_short*>(buf_)));
-        // else
-        //     val = network::ntoh(*static_cast<const emscripten_align1_int*>
-        //     (asio::buffer_cast<const emscripten_align1_int*>(buf_)));
-        // buf_ = buf_ + sizeof(T);
-
-        // val = network::ntoh(*asio::buffer_cast<T const *>(buf_));
         val = read_integral_value<T>(buf_);
         buf_ = buf_ + sizeof(T);
     }
 
-// #ifdef __EMSCRIPTEN__
-// #include <emscripten.h>
-//     void operator()(double &val) const {
-//         val = *static_cast<const emscripten_align1_double *>(
-//             asio::buffer_cast<const emscripten_align1_double *>(buf_));
-//         buf_ = buf_ + sizeof(double);
-//     }
-
-// #else
-    void operator()(float &val) const {
+    auto operator()(float &val) const ->
+        typename std::enable_if<std::numeric_limits<float>::is_iec559>::type {
         uint32_t encoded;
         (*this)(encoded);
         val = network::unpack754(encoded);
     }
 
-    void operator()(double &val) const {
+    auto operator()(double &val) const ->
+        typename std::enable_if<std::numeric_limits<double>::is_iec559>::type {
         uint64_t encoded;
         (*this)(encoded);
         val = network::unpack754(encoded);
     }
-// #endif
 
     template <typename T>
     auto operator()(T &val) const ->
@@ -126,11 +96,6 @@ struct reader_base {
     void operator()(std::string &val) const {
         uint16_t length = 0;
         (*this)(length);
-        // size_t bs = val.length() + sizeof(uint16_t);
-
-        // if (bs > asio::buffer_size(buf_)) {
-        //    throw std::overflow_error("No space in buffer");
-        //}
         val = std::string(asio::buffer_cast<char const *>(buf_), length);
         buf_ = buf_ + length;
     }
@@ -163,10 +128,13 @@ struct reader_base {
         (*this)(val.second);
     }
 
-    void operator()(std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds> &dt) const {
+    void operator()(
+        std::chrono::time_point<std::chrono::system_clock,
+                                std::chrono::microseconds> &dt) const {
         int64_t dateTime;
         (*this)(dateTime);
-        dt = std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds>{
+        dt = std::chrono::time_point<std::chrono::system_clock,
+                                     std::chrono::microseconds>{
             std::chrono::duration<int64_t, std::micro>{dateTime}};
     }
 

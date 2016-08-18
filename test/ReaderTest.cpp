@@ -1,9 +1,9 @@
-#include <gmock/gmock.h>
-#include "SerializationTestTypes.hpp"
-#include <writer.hpp>
-#include <reader.hpp>
-#include <boost/asio/buffer.hpp>
 #include <date.h>
+#include <gmock/gmock.h>
+#include <boost/asio/buffer.hpp>
+#include <reader.hpp>
+#include <writer.hpp>
+#include "SerializationTestTypes.hpp"
 
 using namespace testing;
 using namespace detail;
@@ -71,6 +71,23 @@ TYPED_TEST(IntegralTypeReader, ReadssVariousIntegralTypes) {
     TypeParam readNum;
     this->reader_(readNum);
     ASSERT_THAT(readNum, Eq(this->num));
+}
+
+class BooleanTypeReader : public ReaderBase<4u> {
+protected:
+    BooleanTypeReader() {
+        writer_(true);
+        writer_(false);
+    }
+};
+
+TEST_F(BooleanTypeReader, ReadsBooleanValuesAfterWrite) {
+    bool trueValueRead;
+    bool falseValueRead;
+    reader_(trueValueRead);
+    reader_(falseValueRead);
+    ASSERT_TRUE(trueValueRead);
+    ASSERT_FALSE(falseValueRead);
 }
 
 class FloatingPointTypeReader : public ReaderBase<14u> {
@@ -212,7 +229,6 @@ TEST_F(VectorReader, ReadsConsecutiveVectorsOfDifferentTypeslAfterWrite) {
     reader_(readWords);
     ASSERT_THAT(readWords, Eq(words));
 }
-
 
 class DateTimeReader : public ReaderBase<15u> {
 protected:
@@ -408,12 +424,10 @@ protected:
         {{"A", "B", "AB"}}, {}, {5}, {}};
 };
 
-TEST_F(
-    FusionSequenceWithOptionalFieldReader,
-    ReadOptionalFieldsAsPartOfFusionSequenceWithReadFunction) {
+TEST_F(FusionSequenceWithOptionalFieldReader,
+       ReadOptionalFieldsAsPartOfFusionSequenceWithReadFunction) {
     auto readMsg = read<SerializationTestTypes::msg_with_opt_fields_t>(buf_);
 
     ASSERT_THAT(readMsg.first.properties.value, Eq(msg.properties.value));
     ASSERT_THAT(readMsg.first.number, Eq(5));
 }
-

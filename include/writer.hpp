@@ -3,22 +3,17 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/fusion/include/for_each.hpp>
 #include <boost/fusion/include/is_sequence.hpp>
+#include <chrono>
 #include <exception>
+#include <limits>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
 #include "network.hpp"
 #include "optional.hpp"
-#include <chrono>
-// #include "serialization_types.hpp"
 
 namespace asio = boost::asio;
 namespace fusion = boost::fusion;
-
-// namespace detail {
-// template <typename T>
-// asio::mutable_buffer write(asio::mutable_buffer buf, T const &val);
-// }
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -38,7 +33,6 @@ void write_integral_value(T const &val, asio::mutable_buffer &buf) {
         *static_cast<emscripten_align1_int64 *>(
             asio::buffer_cast<emscripten_align1_int64 *>(buf)) =
             network::hton(val);
-        // detail::write(buf, types::ComposedInt64(val));
     }
 }
 
@@ -48,9 +42,6 @@ void write_integral_value(T const &val, asio::mutable_buffer &buf) {
     *asio::buffer_cast<T *>(buf) = network::hton(val);
 }
 #endif
-
-// namespace asio = boost::asio;
-// namespace fusion = boost::fusion;
 
 namespace detail {
 
@@ -76,42 +67,17 @@ struct writer_base {
         if (bs > asio::buffer_size(buf_)) {
             throw std::overflow_error("No space in buffer");
         }
-        // *asio::buffer_cast<T *>(buf_) = network::hton(val);
-        // *asio::buffer_cast<emscripten_align1_short *>(buf_) =
-        // network::hton(val);
-        // emscripten_align1_short* bptr =
-        // asio::buffer_cast<emscripten_align1_short*>(buf_);
-        // *bptr = network::hton(val);
-        // if(sizeof(T) == 1)
-        //     *asio::buffer_cast<T *>(buf_) = network::hton(val);
-        // else if(sizeof(T) == 2)
-        //     *static_cast<emscripten_align1_short*>
-        //     (asio::buffer_cast<emscripten_align1_short*>(buf_)) =
-        //     network::hton(val);
-        // else
-        //     *static_cast<emscripten_align1_int*>
-        //     (asio::buffer_cast<emscripten_align1_int*>(buf_)) =
-        //     network::hton(val);
         write_integral_value(val, buf_);
         buf_ = buf_ + sizeof(T);
     }
 
-// #ifdef __EMSCRIPTEN__
-// #include <emscripten.h>
-//     void operator()(double val) const {
-//         *static_cast<emscripten_align1_double *>(
-//             asio::buffer_cast<emscripten_align1_double *>(buf_)) = val;
-//         buf_ = buf_ + sizeof(double);
-//     }
-
-// #else
     template <typename T>
     auto operator()(T val) const ->
-        typename std::enable_if<std::is_floating_point<T>::value>::type {
+        typename std::enable_if<std::numeric_limits<typename std::enable_if<
+            std::is_floating_point<T>::value, T>::type>::is_iec559>::type {
         auto encoded = network::pack754(val);
         (*this)(encoded);
     }
-// #endif
 
     template <typename T>
     auto operator()(T const &val) const ->
@@ -159,7 +125,8 @@ struct writer_base {
     }
 
     void operator()(
-        std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds> const &val) const {
+        std::chrono::time_point<std::chrono::system_clock,
+                                std::chrono::microseconds> const &val) const {
         int64_t dateTime = val.time_since_epoch().count();
         (*this)(dateTime);
     }

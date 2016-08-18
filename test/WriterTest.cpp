@@ -93,7 +93,6 @@ TEST_F(WriterTest, WritesMoreDataThanBufferSize) {
     int64_t big_num(10);
     writer_(num);
 
-    // ASSERT_THAT(asio::buffer_size(w.buf_), Eq(0u));
     ASSERT_THROW(writer_(big_num), std::overflow_error);
 }
 
@@ -115,6 +114,30 @@ TYPED_TEST(IntegralTypeWriter, WritesVariousIntegralTypes) {
     TypeParam read_num = this->template read_value<TypeParam>();
     ASSERT_THAT(network::ntoh(read_num), Eq(num));
 }
+
+class BooleanTypeWriter : public WriterBase<4u> {
+};
+
+TEST_F(BooleanTypeWriter, WritesBooleanValueAsOneByteInteger) {
+    writer_(true);
+    ASSERT_THAT(asio::buffer_size(writer_.buf_), Eq(arr_size - 1u));
+}
+
+TEST_F(BooleanTypeWriter, ReadsBooleanValueAfterWrite) {
+    writer_(true);
+    auto trueValueRead = read_value<bool>();
+    ASSERT_TRUE(trueValueRead);
+}
+
+TEST_F(BooleanTypeWriter, WritesTwoBooleanValuesAndReadThemBack) {
+    writer_(true);
+    writer_(false);
+    read_value<bool>();
+    auto falseValueRead = read_value<bool>();
+    ASSERT_FALSE(falseValueRead);
+}
+
+
 
 class FloatingPointTypeWriter : public WriterBase<10u> {
 protected:
@@ -627,4 +650,9 @@ TEST_F(LazyTypeWriter, WritesLazyTypeOfVectorOfIntegralTypesWithWriteFunction) {
     auto buf = write(buf_, numbers);
     auto vec_size = numbers.get().size() * sizeof(int32_t);
     ASSERT_THAT(asio::buffer_size(buf), Eq(arr_size - vec_size - 2u));
+}
+
+TEST_F(BooleanTypeWriter, WritesBooleanValueWithWriteFunction) {
+    auto buf = write(buf_, true);
+    ASSERT_THAT(asio::buffer_size(buf), Eq(arr_size - 1u));
 }
